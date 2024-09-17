@@ -1,18 +1,5 @@
 namespace BreakoutNESLevelEditor;
 
-public class ConfirmDelete : Form
-{
-    public ConfirmDelete()
-    {
-        this.AutoScaleMode = AutoScaleMode.Font;
-        this.ClientSize = new Size(450, 250);
-        this.Text = "";
-        this.FormBorderStyle = FormBorderStyle.FixedDialog;
-        this.BackColor = Color.FromArgb(255, 40, 40, 40);
-        this.MaximizeBox = false;
-    }
-}
-
 public class SelectBlockType : Form
 {
     private Editor? editor;
@@ -25,7 +12,7 @@ public class SelectBlockType : Form
     public SelectBlockType()
     {
         this.AutoScaleMode = AutoScaleMode.Font;
-        this.ClientSize = new Size(450, 250);
+        this.ClientSize = new Size(400, 200);
         this.Text = "Select Element Type...";
         this.FormBorderStyle = FormBorderStyle.FixedDialog;
         this.BackColor = Color.FromArgb(255, 40, 40, 40);
@@ -58,6 +45,14 @@ public class SelectBlockType : Form
         };
         this.Controls.Add(boolLineBtn);
         boolLineBtn.Click += DuetLine;
+
+        description = new Label(){
+            Size = new Size(150, 150),
+            Location = new Point(160, 10),
+            Text = "One lonely block...\n\nA whole row of blocks!\n\nUnimplemented",
+            ForeColor = Color.White
+        };
+        this.Controls.Add(description);
     }
 
     public void Single(object? sender, EventArgs? e)
@@ -88,4 +83,5 @@ public class SelectBlockType : Form
     private System.Windows.Forms.Button singleBtn;
     private System.Windows.Forms.Button lineBtn;
     private System.Windows.Forms.Button boolLineBtn;
+    private System.Windows.Forms.Label description;
 }

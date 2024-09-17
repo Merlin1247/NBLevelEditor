@@ -38,10 +38,11 @@ partial class Editor
         this.FormBorderStyle = FormBorderStyle.FixedSingle;
         this.BackColor = Color.FromArgb(255, 40, 40, 40);
         this.MaximizeBox = false;
+        this.Icon = new Icon(@"Images\gameIcon.ico");
 
         levelSelect = new ComboBox(){
             Size = new Size(100, 20),
-            Location = new Point(8, 8),
+            Location = new Point(316, 8),
             DropDownStyle = ComboBoxStyle.DropDownList
         };
         levelSelect.Items.Add(" ");
@@ -69,7 +70,7 @@ partial class Editor
         
         saveToFile = new Button(){
             Size = new Size(100, 25),
-            Location = new Point(113, 7),
+            Location = new Point(8, 7),
             Text = "Save",
             BackColor = Color.White
         };
@@ -77,12 +78,21 @@ partial class Editor
 
         loadFromFile = new Button(){
             Size = new Size(100, 25),
-            Location = new Point(218, 7),
+            Location = new Point(113, 7),
             Text = "Load",
             BackColor = Color.White
             
         };
         this.Controls.Add(loadFromFile);
+
+        deleteLevel = new Button(){
+            Size = new Size(100, 25),
+            Location = new Point(levelSelect.Location.X + 105, 7),
+            Text = "Delete level",
+            BackColor = Color.White
+            
+        };
+        this.Controls.Add(deleteLevel);
 
         propertiesTab = new TabControl(){
             Size = new Size(362, 508),
@@ -130,7 +140,8 @@ partial class Editor
             FullRowSelect = true,
             Activation = ItemActivation.OneClick,
             BackColor = Color.White,
-            HideSelection = false
+            HideSelection = false,
+            MultiSelect = false
         };
         
         CreateBlocksViewColumnHeaders();
@@ -154,7 +165,7 @@ partial class Editor
 
         listBlockUp = new Button(){
             Size = new Size(25, 25),
-            Location = new Point(105, 355),
+            Location = new Point(150, 355),
             Text = "\u2191",
             BackColor = Color.White,
             TextAlign = ContentAlignment.MiddleCenter
@@ -163,7 +174,7 @@ partial class Editor
 
         listBlockDown = new Button(){
             Size = new Size(25, 25),
-            Location = new Point(135, 355),
+            Location = new Point(180, 355),
             Text = "\u2193",
             BackColor = Color.White,
             TextAlign = ContentAlignment.MiddleCenter
@@ -184,6 +195,7 @@ partial class Editor
             Location = new Point(27, 392),
             ForeColor = Color.Black,
             BackColor = Color.White,
+            WordWrap = false,
         };
         blocksTab.Controls.Add(xText);
         xText.BringToFront();
@@ -194,6 +206,7 @@ partial class Editor
             Location = new Point(191, 392),
             ForeColor = Color.Black,
             BackColor = Color.White,
+            WordWrap = false,
         };
         blocksTab.Controls.Add(yText);
         yText.BringToFront();
@@ -204,12 +217,30 @@ partial class Editor
             Location = new Point(27, 422),
             ForeColor = Color.Black,
             BackColor = Color.White,
+            WordWrap = false,
         };
         blocksTab.Controls.Add(hpText);
         hpText.BringToFront();
 
+        infoLabel = new Label(){
+            Size = new Size(300, 200),
+            Location = new Point(2, 5),
+            ForeColor = Color.White,
+        };
+        infoTab.Controls.Add(infoLabel);
+
+        filePathText = new TextBox()
+        {
+            Size = new Size(344, 50),
+            Location = new Point(5, 25),
+            ForeColor = Color.Black,
+            BackColor = Color.White,
+        };
+        infoTab.Controls.Add(filePathText);
+        filePathText.BringToFront();
+
         ballFieldLabel = new Label(){
-            Size = new Size(350, 200),
+            Size = new Size(300, 200),
             Location = new Point(2, 43),
             ForeColor = Color.White,
             Text = "Horizontal Position:\n\nVertical Position:\n\nHorizontal Speed: \n\nVertical Speed:"
@@ -218,20 +249,22 @@ partial class Editor
 
         ballxPosText = new TextBox()
         {
-            Size = new Size(200, 25),
+            Size = new Size(100, 25),
             Location = new Point(120, 40),
             ForeColor = Color.Black,
             BackColor = Color.White,
+            WordWrap = false,
         };
         ballTab.Controls.Add(ballxPosText);
         ballxPosText.BringToFront();
 
         ballyPosText = new TextBox()
         {
-            Size = new Size(200, 25),
+            Size = new Size(100, 25),
             Location = new Point(120, 70),
             ForeColor = Color.Black,
             BackColor = Color.White,
+            WordWrap = false,
         };
         ballTab.Controls.Add(ballyPosText);
         ballyPosText.BringToFront();
@@ -242,6 +275,7 @@ partial class Editor
             Location = new Point(120, 100),
             ForeColor = Color.Black,
             BackColor = Color.White,
+            WordWrap = false,
         };
         ballTab.Controls.Add(ballxSpeedText);
         ballxSpeedText.BringToFront();
@@ -252,6 +286,7 @@ partial class Editor
             Location = new Point(120, 130),
             ForeColor = Color.Black,
             BackColor = Color.White,
+            WordWrap = false,
         };
         ballTab.Controls.Add(ballySpeedText);
         ballySpeedText.BringToFront();
@@ -306,14 +341,16 @@ partial class Editor
     private System.Windows.Forms.TabPage ballTab;
     private System.Windows.Forms.TabPage blocksTab;
     private System.Windows.Forms.TabPage bytesTab;
+    private System.Windows.Forms.Label infoLabel;
+    private System.Windows.Forms.TextBox filePathText;
     private System.Windows.Forms.Label ballFieldLabel;
     private System.Windows.Forms.CheckBox showBallCheckbox;
     private System.Windows.Forms.TextBox ballxPosText;
     private System.Windows.Forms.TextBox ballyPosText;
     private System.Windows.Forms.TextBox ballxSpeedText;
     private System.Windows.Forms.TextBox ballySpeedText;
-    private System.Windows.Forms.Button addLevelButton;
-    private System.Windows.Forms.Button removeLevelButton;
+    //private System.Windows.Forms.Button addLevelButton;
+    private System.Windows.Forms.Button deleteLevel;
     private System.Windows.Forms.Label bytesText;
     private System.Windows.Forms.ListView blocksView;
     private System.Windows.Forms.Button createListBlock;

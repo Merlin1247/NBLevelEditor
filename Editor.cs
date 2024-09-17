@@ -1,15 +1,15 @@
 using System.Drawing.Drawing2D;
 using System.Text;
-using System.Windows.Forms.VisualStyles;
 
 #pragma warning disable CS8602 // Dereference of a possibly null reference. (Thrown when attempting to access a variable that may or may not be null)
+#pragma warning disable CS8604 // Possible null reference argument. (Thrown when passing a variable that may or may not be null as a method parameter)
 
 namespace BreakoutNESLevelEditor;
 
 public partial class Editor : Form
 {
     private int totalLevels;
-    private List<LevelDatum> levelData = [];
+    private List<LevelData> levelDataList = [];
     private byte[]? rawData;
     private string filePath = "";
     private List<BlockObj?> blockList = [];
@@ -19,6 +19,7 @@ public partial class Editor : Form
         InitializeComponent();
         loadFromFile.Click += LoadDataFromFile;
         saveToFile.Click += SaveDataToFile;
+        deleteLevel.Click += DeleteLevel;
         levelSelect.SelectedIndex = 0;
         levelSelect.SelectedIndexChanged += ChangeLevel;
         createListBlock.Click += ShowCreationDialog;
@@ -26,6 +27,7 @@ public partial class Editor : Form
         blocksView.ItemSelectionChanged += SelectItem;
         listBlockUp.Click += ChangeBlockOrderUp;
         listBlockDown.Click += ChangeBlockOrderDown;
+        filePathText.Leave += UpdateFilePath;
         showBallCheckbox.CheckedChanged += ToggleBallVisibility;
         ballxPosText.Leave += ChangeBallXPos;
         ballyPosText.Leave += ChangeBallYPos;
@@ -34,11 +36,36 @@ public partial class Editor : Form
         xText.Leave += ChangeX;
         yText.Leave += ChangeY;
         hpText.Leave += ChangeHP;
+        this.KeyPreview = true;
+        this.KeyDown += new KeyEventHandler(FormKeyDown);
         SetBlockOptionsVisibility(false);
 
         filePath = "LevelData.defaultlvl";
         LoadDataFromFile(null, null);
         filePath = "LevelData.lvl";
+        filePathText.Text = filePath;
+    }
+
+    void FormKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Control && e.KeyCode == Keys.S)
+        {
+            SaveDataToFile(null, null);
+            e.SuppressKeyPress = true;  
+        }
+        if (e.KeyData == Keys.Return || e.KeyData == Keys.Escape)
+        {
+            this.ActiveControl = null;
+            e.SuppressKeyPress = true;  
+        }
+        if (e.Control && e.KeyCode == Keys.N && false)
+        {
+            StringStruct str = new StringStruct() { Value = filePath };
+            filePath = "LevelData.defaultlvl";
+            LoadDataFromFile(null, null);
+            filePath = str.Value;
+            e.SuppressKeyPress = true;  
+        }
     }
 
     private void ShowCreationDialog(object? sender, EventArgs? e)
@@ -50,7 +77,7 @@ public partial class Editor : Form
 
     public void SelectItem(object? sender, EventArgs? e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         if(blocksView.SelectedItems.Count == 0)
         {
             SetBlockOptionsVisibility(false);
@@ -58,9 +85,11 @@ public partial class Editor : Form
         else if(blocksView.SelectedItems.Count == 1)
         {
             SetBlockOptionsVisibility(true);
+            SetTangibilityAndColour(listBlockUp, blocksView.SelectedItems[0].Index != 0);
+            SetTangibilityAndColour(listBlockDown, blocksView.SelectedItems[0].Index != blocksView.Items.Count - 1);
             yText.Text = currentLevel.blocks[blocksView.SelectedItems[0].Index].yPos.ToString();
             hpText.Text = currentLevel.blocks[blocksView.SelectedItems[0].Index].health[0].ToString();
-            xText.Enabled = currentLevel.blocks[blocksView.SelectedItems[0].Index].type == 0;
+            SetTangibilityAndColour(xText, currentLevel.blocks[blocksView.SelectedItems[0].Index].type == 0);
             if(xText.Enabled)
             {
                 xText.Text = currentLevel.blocks[blocksView.SelectedItems[0].Index].xPos.ToString();
@@ -69,13 +98,13 @@ public partial class Editor : Form
             {
                 xText.Text = "-";
                 for(int i = 1; i < 14; i++)
-                { hpText.Text += ", " + currentLevel.blocks[blocksView.SelectedItems[0].Index].health[i].ToString();}
+                { hpText.Text += "," + currentLevel.blocks[blocksView.SelectedItems[0].Index].health[i].ToString();}
             }
         }
         else if(blocksView.SelectedItems.Count > 1)
         {
             SetBlockOptionsVisibility(true);
-            xText.Enabled = true;
+            SetTangibilityAndColour(xText, true);
             xText.Text = "-";
             yText.Text = "-";
             hpText.Text = "-";
@@ -89,11 +118,21 @@ public partial class Editor : Form
         xText.Visible = visible;
         yText.Visible = visible;
         hpText.Visible = visible;
+        listBlockUp.Visible = visible;
+        listBlockDown.Visible = visible;
+    }
+
+    public static void SetTangibilityAndColour(dynamic obj, bool enabled)
+    {
+        if(obj == null) { return; }
+        obj.Enabled = enabled;
+        if(enabled) { obj.BackColor = Color.White; }
+        else { obj.BackColor = Color.LightGray; }
     }
 
     public void FinishBlockCreation(byte mode)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         switch(mode)
         {
             case 0:
@@ -101,7 +140,7 @@ public partial class Editor : Form
                 {
                     currentLevel.blocks.Add(
                         new Block{
-                            xPos = 2,
+                            xPos = 1,
                             yPos = 2,
                             health = [1]
                         }
@@ -125,12 +164,14 @@ public partial class Editor : Form
             default:
                 throw new ArgumentOutOfRangeException();
         }
-        UpdateBlocks();
+        UpdateDisplayedLevel();
     }
 
-    public void UpdateBlocks()
+    public void UpdateDisplayedLevel(bool noBlocks = false)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
+        if(noBlocks) { goto BLOCKEND; }
+
         if(blockList != null)
         {
             foreach(BlockObj? b in blockList)
@@ -163,7 +204,7 @@ public partial class Editor : Form
                         CreateBlock(1, s.yPos, s.health[0]);
                         l.SubItems[1].Text = "-";
                         for(int i = 1; i < 14; i++)
-                        { l.SubItems[3].Text += ", " + s.health[i]; 
+                        { l.SubItems[3].Text += "," + s.health[i]; 
                         CreateBlock((byte)(i + 1), s.yPos, s.health[i]); }
                         break;
                     default:
@@ -173,11 +214,14 @@ public partial class Editor : Form
             }
         }
 
+        BLOCKEND:
+
         ballImage.BringToFront();
+        UpdateBallFields();
 
         currentLevel.data = [
-            (byte)(currentLevel.ballData.xSpeed & 0b10000011),
-            (byte)(currentLevel.ballData.ySpeed & 0b10000011),
+            (byte)(currentLevel.ballData.xSpeed & 0b11111111),
+            (byte)(currentLevel.ballData.ySpeed & 0b11111111),
             currentLevel.ballData.xSubSpeed,
             currentLevel.ballData.ySubSpeed,
             currentLevel.ballData.xPos,
@@ -205,9 +249,14 @@ public partial class Editor : Form
 
         }
         currentLevel.data.Add(0);
+
+        int tb = 0;
+        foreach(LevelData l in levelDataList)
+        { tb += l.data.Count; }
+        infoLabel.Text = $"File Save Path:\n\n\n\nByte count (current level):   {currentLevel.data.Count}/256\nByte count (all levels):          {tb}";
         
         bytesText.Text = "";
-        foreach(LevelDatum l in levelData)
+        foreach(LevelData l in levelDataList)
         {
             foreach(byte b in l.data)
             {
@@ -220,9 +269,9 @@ public partial class Editor : Form
 
     private void ChangeLevel(object? sender, EventArgs? e)
     {
-        if(levelSelect.SelectedIndex >= levelData.Count)
+        if(levelSelect.SelectedIndex >= levelDataList.Count)
         {
-            levelData.Add(new LevelDatum(){
+            levelDataList.Add(new LevelData(){
                 header = 0,
                 ballData = new BallData(){
                     xSpeed = 0,
@@ -237,18 +286,33 @@ public partial class Editor : Form
             });
             levelSelect.Items[levelSelect.SelectedIndex] = "Level " + (levelSelect.SelectedIndex + 1);
             levelSelect.Items.Add("New Level...");
+            SetTangibilityAndColour(deleteLevel, true);
         }
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         ballImage.Location = new Point(currentLevel.ballData.xPos * 2 + 8, currentLevel.ballData.yPos * 2 + 36);
         UpdateBallFields();
         
-        UpdateBlocks();
+        UpdateDisplayedLevel();
+    }
+
+    private void DeleteLevel(object? sender, EventArgs? e)
+    {
+        if(MessageBox.Show("Are you sure you want to delete this level?", "Confirm action", MessageBoxButtons.OKCancel) == DialogResult.OK)
+        {
+            levelDataList.RemoveAt(levelSelect.SelectedIndex);
+            int si = Math.Max(0, levelSelect.SelectedIndex - 1);
+            levelSelect.Items.Clear();
+            for(int i = 0; i < levelDataList.Count; i++) { levelSelect.Items.Add("Level " + (i + 1)); }
+            levelSelect.Items.Add("New Level...");
+            levelSelect.SelectedIndex = si;
+            SetTangibilityAndColour(deleteLevel, levelDataList.Count > 1);
+        }
     }
 
     private void CreateBlock(byte x, byte y, byte hp)
     {
-        Console.WriteLine("creating... " + x + " " + y + " " + hp);
-        if(hp < 1 || hp > 100 || x < 1 || x > 14 || y < 2 || y > 12) {throw new ArgumentOutOfRangeException(); }
+        if(hp < 0 || hp > 100 || x < 1 || x > 14 || y < 2 || y > 12) {throw new ArgumentOutOfRangeException(); }
+        if(hp == 0) return;
         BlockObj b = new BlockObj(){
             health = hp,
             xPos = x,
@@ -306,7 +370,7 @@ public partial class Editor : Form
 
     private void DestroyBlock(object? sender, EventArgs? e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         if(currentLevel.blocks != null)
         {
             for(int i = 0; i < blocksView.SelectedItems.Count; i++)
@@ -314,27 +378,31 @@ public partial class Editor : Form
                 currentLevel.blocks.RemoveAt(blocksView.SelectedItems[0].Index);
             }
         }
-        UpdateBlocks();
+        UpdateDisplayedLevel();
+        SetBlockOptionsVisibility(false);
     }
 
     public void ChangeBlockOrderUp(object? sender, EventArgs? e)
-    { if(blocksView.SelectedItems[0].Index == 0) { throw new ArgumentOutOfRangeException();} ChangeBlockOrder(-1); }
+    { if(blocksView.SelectedItems[0].Index == 0) { throw new ArgumentOutOfRangeException();} 
+    ChangeBlockOrder(-1); }
     public void ChangeBlockOrderDown(object? sender, EventArgs? e)
     { if(blocksView.SelectedItems[0].Index + 1 == blocksView.Items.Count) { throw new ArgumentOutOfRangeException();} 
     ChangeBlockOrder(1); }
     public void ChangeBlockOrder(int offset)
     {
-        
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         Block b = currentLevel.blocks[blocksView.SelectedItems[0].Index];
         currentLevel.blocks.RemoveAt(blocksView.SelectedItems[0].Index);
         currentLevel.blocks.Insert(blocksView.SelectedItems[0].Index + offset, b);
-        UpdateBlocks();
+        blocksView.Items[blocksView.SelectedItems[0].Index + offset].Selected = true;
+        blocksView.Items[blocksView.SelectedItems[0].Index - offset].Selected = false;
+        blocksView.Select();
+        UpdateAndPreserveSelection();
     }
 
     private void ChangeX(object? sender, EventArgs? e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         if(currentLevel.blocks != null)
         {
             try
@@ -353,7 +421,7 @@ public partial class Editor : Form
     }
     private void ChangeY(object? sender, EventArgs? e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         if(currentLevel.blocks != null)
         {
             try
@@ -373,7 +441,7 @@ public partial class Editor : Form
 
     private void ChangeHP(object? sender, EventArgs? e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
         if(currentLevel.blocks != null)
         {
             try
@@ -383,13 +451,17 @@ public partial class Editor : Form
                     switch(currentLevel.blocks[blocksView.SelectedItems[i].Index].type)
                     {
                         case 0:
-                            currentLevel.blocks[blocksView.SelectedItems[i].Index].health[0] = Convert.ToByte(hpText.Text);
+                            byte b0 = Convert.ToByte(hpText.Text);
+                            if(b0 == 0 || b0 > 100) throw new ArgumentOutOfRangeException();
+                            currentLevel.blocks[blocksView.SelectedItems[i].Index].health[0] = b0;
                             break;
                         case 1:
-                            string[] str = hpText.Text.Split(", ");
+                            string[] str = hpText.Text.Split(",");
                             for(int j = 0; j < 14; j++)
                             {
-                                currentLevel.blocks[blocksView.SelectedItems[i].Index].health[j] = Convert.ToByte(str[j]);
+                                byte b1 = Convert.ToByte(str[j]);
+                                if(b1 > 100) throw new ArgumentOutOfRangeException();
+                                currentLevel.blocks[blocksView.SelectedItems[i].Index].health[j] = b1;
                             }
                             break;
                         case 2:
@@ -411,7 +483,7 @@ public partial class Editor : Form
     {
         List<int> n = [];
         foreach(ListViewItem l in blocksView.SelectedItems) { n.Add(l.Index); }
-        UpdateBlocks();
+        UpdateDisplayedLevel();
         foreach(int n1 in n) { blocksView.Items[n1].Selected = true; }
         blocksView.Select();
     }
@@ -423,51 +495,65 @@ public partial class Editor : Form
 
     private void ChangeBallXPos(object? sender, EventArgs e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
-        currentLevel.ballData.xPos = Convert.ToByte(ballxPosText.Text);
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
+        try { currentLevel.ballData.xPos = Convert.ToByte(Math.Clamp(Convert.ToSingle(ballxPosText.Text), 0x10, 256-0x15)); }
+        catch { ballxPosText.Text = currentLevel.ballData.xPos.ToString(); return;}
         ballImage.Location = new Point(currentLevel.ballData.xPos * 2 + 8, currentLevel.ballData.yPos * 2 + 36);
-        ballxPosText.Text = currentLevel.ballData.xPos.ToString();
         currentLevel.data[4] = currentLevel.ballData.xPos;
+        UpdateDisplayedLevel(true);
     }
 
     private void ChangeBallYPos(object? sender, EventArgs e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
-        currentLevel.ballData.yPos = Convert.ToByte(ballyPosText.Text);
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
+        try { currentLevel.ballData.yPos = Convert.ToByte(Math.Clamp(Convert.ToSingle(ballyPosText.Text), 0x18, 256-0x25)); }
+        catch { ballyPosText.Text = currentLevel.ballData.yPos.ToString(); return;}
         ballImage.Location = new Point(currentLevel.ballData.xPos * 2 + 8, currentLevel.ballData.yPos * 2 + 36);
-        ballyPosText.Text = currentLevel.ballData.yPos.ToString();
         currentLevel.data[5] = currentLevel.ballData.yPos;
+        UpdateDisplayedLevel(true);
     }
+
+    
 
     private void ChangeBallXSpd(object? sender, EventArgs e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
-        currentLevel.ballData.xSpeed = Convert.ToSByte(Math.Floor(Convert.ToSingle(ballxSpeedText.Text)));
-        currentLevel.ballData.xSubSpeed = Convert.ToByte(Math.Round((Convert.ToSingle(ballxSpeedText.Text) - currentLevel.ballData.xSpeed) * 256));
-        ballxSpeedText.Text = (currentLevel.ballData.xSubSpeed / 256 + currentLevel.ballData.xSpeed).ToString();
-        currentLevel.data[0] = (byte)currentLevel.ballData.xSpeed;
-        currentLevel.data[2] = currentLevel.ballData.xSubSpeed;
+        StringStruct s = new(){ Value = ballxSpeedText.Text };
+        FloatStruct f = new();
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
+        try { f.Value = Math.Clamp(Convert.ToSingle(s.Value), -4, 4); }
+        catch { UpdateBallFields(); return;}
+        currentLevel.ballData.xSpeed = Convert.ToSByte(Math.Floor(f.Value));
+        if(Math.Round((Math.Clamp(Convert.ToSingle(f.Value), -4, 4) - currentLevel.ballData.xSpeed) * 256) == 256) 
+        { currentLevel.ballData.xSpeed = Convert.ToSByte(f.Value); currentLevel.ballData.xSubSpeed = 0; }
+        else { currentLevel.ballData.xSubSpeed = Convert.ToByte(Math.Round((f.Value - currentLevel.ballData.xSpeed) * 256)); }
+        UpdateDisplayedLevel(true);
     }
 
     private void ChangeBallYSpd(object? sender, EventArgs e)
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
-        currentLevel.ballData.ySpeed = Convert.ToSByte(Math.Floor(Convert.ToSingle(ballySpeedText.Text)));
-        currentLevel.ballData.ySubSpeed = Convert.ToByte(Math.Round((Convert.ToSingle(ballySpeedText.Text) - currentLevel.ballData.ySpeed) * 256));
-        Console.WriteLine(Convert.ToByte(Math.Round((Convert.ToSingle(ballySpeedText.Text) - currentLevel.ballData.ySpeed) * 256)) + "");
-        ballySpeedText.Text = (Convert.ToSingle(currentLevel.ballData.ySubSpeed) / 256 + currentLevel.ballData.ySpeed).ToString();
-        currentLevel.data[1] = (byte)currentLevel.ballData.ySpeed;
-        currentLevel.data[3] = currentLevel.ballData.ySubSpeed;
+        StringStruct s = new(){ Value = ballySpeedText.Text };
+        FloatStruct f = new();
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
+        try { f.Value = Math.Clamp(Convert.ToSingle(s.Value), -4, 4); }
+        catch { UpdateBallFields(); return;}
+        currentLevel.ballData.ySpeed = Convert.ToSByte(Math.Floor(f.Value));
+        if(Math.Round((Math.Clamp(Convert.ToSingle(f.Value), -4, 4) - currentLevel.ballData.ySpeed) * 256) == 256) 
+        { currentLevel.ballData.ySpeed = Convert.ToSByte(f.Value); currentLevel.ballData.ySubSpeed = 0; }
+        else { currentLevel.ballData.ySubSpeed = Convert.ToByte(Math.Round((f.Value - currentLevel.ballData.ySpeed) * 256)); }
+        UpdateDisplayedLevel(true);
     }
 
     public void UpdateBallFields()
     {
-        LevelDatum currentLevel = levelData[levelSelect.SelectedIndex];
-        ballxPosText.Text = currentLevel.ballData.xPos.ToString();
-        ballyPosText.Text = currentLevel.ballData.yPos.ToString();
-        ballxSpeedText.Text = (currentLevel.ballData.xSubSpeed / 256 + currentLevel.ballData.xSpeed).ToString();
-        ballySpeedText.Text = (currentLevel.ballData.ySubSpeed / 256 + currentLevel.ballData.ySpeed).ToString();
+        LevelData currentLevel = levelDataList[levelSelect.SelectedIndex];
+        ballxPosText.Lines = [currentLevel.ballData.xPos + ""];
+        ballyPosText.Lines = [currentLevel.ballData.yPos + ""];
+        ballxSpeedText.Lines = [(Convert.ToSingle(currentLevel.ballData.xSubSpeed) / 256 + currentLevel.ballData.xSpeed).ToString()];
+        ballySpeedText.Lines = [(Convert.ToSingle(currentLevel.ballData.ySubSpeed) / 256 + currentLevel.ballData.ySpeed).ToString()];
     }
+
+    private void UpdateFilePath(object? sender, EventArgs? e)
+    { filePath = filePathText.Text; }
 
     private void LoadDataFromFile(object? sender, EventArgs? e)
     {
@@ -483,12 +569,13 @@ public partial class Editor : Form
             {
                 //Get the path of specified file
                 filePath = openFileDialog.FileName;
+                filePathText.Text = filePath;
             }
             else { return; }            
         }
         READFILE:
         
-        levelData = [];
+        levelDataList = [];
         FileStream fs = new(filePath, FileMode.Open);
         BinaryReader bf = new(fs);
         rawData = bf.ReadBytes((int)bf.BaseStream.Length);
@@ -506,7 +593,7 @@ public partial class Editor : Form
         while(true)
         {
             byte levelOffset = 0;
-            LevelDatum currentLevel = new(){
+            LevelData currentLevel = new(){
                 header = (byte)(rawData[globalOffset] & 0b01111100),
                 ballData = new BallData(){
                     xSpeed = (sbyte)(rawData[globalOffset] & 0b10000011),
@@ -531,7 +618,7 @@ public partial class Editor : Form
                         {
                             currentLevel.data.Add(rawData[globalOffset + i]);
                         }
-                        levelData.Add(currentLevel);
+                        levelDataList.Add(currentLevel);
                         goto FINISHDATA; 
                     }
                     goto FINISHLEVEL; 
@@ -581,13 +668,14 @@ public partial class Editor : Form
             {
                 currentLevel.data.Add(rawData[globalOffset + i]);
             }
-            levelData.Add(currentLevel);
+            levelDataList.Add(currentLevel);
             totalLevels++;
             globalOffset += levelOffset;
         }
         FINISHDATA:
         totalLevels++;
         levelSelect.Items.Clear();
+        SetTangibilityAndColour(deleteLevel, totalLevels > 1);
         for(int i = 0; i < totalLevels; i++) { levelSelect.Items.Add("Level " + (i + 1)); }
         levelSelect.Items.Add("New Level...");
         levelSelect.SelectedIndex = 0;
@@ -596,34 +684,55 @@ public partial class Editor : Form
 
     public void SaveDataToFile(object? sender, EventArgs? e)
     {
-        if(File.Exists(filePath) == false) { return; }
-        List<byte> b = [];
-        foreach(LevelDatum l in levelData)
+        if(levelDataList.Count > 256)
+        { MessageBox.Show($"There are more than 256 levels ({levelDataList.Count})", "Failed to save level data"); return; }
+        for(int i = 0; i < levelDataList.Count; i++)
         {
-            for(int i = 0; i < l.data.Count; i++)
-            {
-                b.Add(l.data[i]);
-            }
+            if(levelDataList[i].data.Count > 256) 
+            { MessageBox.Show($"Level {i + 1} contains more than 256 bytes of data ({levelDataList[i].data.Count})", "Failed to save level data"); return; }
         }
+
+        List<byte> b = [];
+        for(int i = 0; i < levelDataList.Count; i++)
+        {
+            b.AddRange(levelDataList[i].data);
+        }
+
+        if(b.Count >= 25000)
+        { MessageBox.Show("The level data is too big (>25kb)", "Failed to save level data"); return; }
+
         rawData = [.. b];
         FileStream fs = new(filePath, FileMode.Create);
         fs.Write(rawData);
         fs.Close();
 
         string inc = ".define LEVELDATAINDICES LD";
-        int offset = levelData[0].data.Count;
-        for(int i = 1; i < levelData.Count; i++)
+        int offset = levelDataList[0].data.Count;
+        for(int i = 1; i < levelDataList.Count; i++)
         {
             inc += ", LD+" + offset;
-            offset += levelData[i].data.Count;
+            offset += levelDataList[i].data.Count;
         }
         fs = new(filePath.Remove(filePath.Length - 3) + "offsets.inc.s", FileMode.Create);
         fs.Write(Encoding.UTF8.GetBytes(inc));
         fs.Close();
+
+        if(b.Count >= 12000)
+        { MessageBox.Show("Friendly reminder that the level data is beginning to grow large.\n(Note: The level data has been saved successfully)", "Filesize warning"); }
     }
 }
 
-public class LevelDatum
+struct StringStruct
+{
+    public string Value { get; set; }
+}
+
+struct FloatStruct
+{
+    public float Value { get; set; }
+}
+
+public class LevelData
 {
     public byte header;
     public BallData? ballData;
