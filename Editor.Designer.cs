@@ -1,4 +1,6 @@
-﻿using System.Drawing.Drawing2D;
+﻿//Copyright (C) 2024 Brandon W. See Program.cs for more information.
+
+using System.Drawing.Drawing2D;
 
 namespace BreakoutNESLevelEditor;
 

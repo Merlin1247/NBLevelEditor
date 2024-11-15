@@ -1,3 +1,5 @@
+//Copyright (C) 2024 Brandon W. See Program.cs for more information.
+
 namespace BreakoutNESLevelEditor;
 
 public class SelectBlockType : Form

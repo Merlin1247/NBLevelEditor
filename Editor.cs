@@ -1,3 +1,5 @@
+//Copyright (C) 2024 Brandon W. See Program.cs for more information.
+
 using System.Drawing.Drawing2D;
 using System.Text;
 
@@ -13,6 +15,8 @@ public partial class Editor : Form
     private byte[]? rawData;
     private string filePath = "";
     private List<BlockObj?> blockList = [];
+    
+    //private bool unsavedChanges;
 
     public Editor()
     {
@@ -37,7 +41,7 @@ public partial class Editor : Form
         yText.Leave += ChangeY;
         hpText.Leave += ChangeHP;
         this.KeyPreview = true;
-        this.KeyDown += new KeyEventHandler(FormKeyDown);
+        this.KeyDown += new KeyEventHandler(FormKeyDown); //A warning here is normal
         SetBlockOptionsVisibility(false);
 
         filePath = "LevelData.defaultlvl";
@@ -60,11 +64,15 @@ public partial class Editor : Form
         }
         if (e.Control && e.KeyCode == Keys.N && false)
         {
-            StringStruct str = new StringStruct() { Value = filePath };
-            filePath = "LevelData.defaultlvl";
-            LoadDataFromFile(null, null);
-            filePath = str.Value;
             e.SuppressKeyPress = true;  
+            if (false /*!unsavedChanges*/ || MessageBox.Show("Are you sure you want to create a new level?\nYou have unsaved modifiactions that will be discarded.", "Confirm action", MessageBoxButtons.OKCancel) == DialogResult.OK)
+            {
+                StringStruct str = new StringStruct() { Value = filePath };
+                filePath = "LevelData.defaultlvl";
+                LoadDataFromFile(null, null);
+                filePath = str.Value;
+                throw new NotImplementedException();
+            }
         }
     }
 
@@ -165,6 +173,8 @@ public partial class Editor : Form
                 throw new ArgumentOutOfRangeException();
         }
         UpdateDisplayedLevel();
+        blocksView.Items[currentLevel.blocks.Count-1].Selected = true;
+        SelectItem(null, null);
     }
 
     public void UpdateDisplayedLevel(bool noBlocks = false)
@@ -575,6 +585,7 @@ public partial class Editor : Form
         }
         READFILE:
         
+        totalLevels = 0;
         levelDataList = [];
         FileStream fs = new(filePath, FileMode.Open);
         BinaryReader bf = new(fs);
@@ -596,8 +607,8 @@ public partial class Editor : Form
             LevelData currentLevel = new(){
                 header = (byte)(rawData[globalOffset] & 0b01111100),
                 ballData = new BallData(){
-                    xSpeed = (sbyte)(rawData[globalOffset] & 0b10000011),
-                    ySpeed = (sbyte)(rawData[globalOffset+1] & 0b10000011),
+                    xSpeed = (sbyte)(rawData[globalOffset] & 0b11111111),
+                    ySpeed = (sbyte)(rawData[globalOffset+1] & 0b11111111),
                     xSubSpeed = rawData[globalOffset+2],
                     ySubSpeed = rawData[globalOffset+3],
                     xPos = rawData[globalOffset+4],
@@ -698,8 +709,8 @@ public partial class Editor : Form
             b.AddRange(levelDataList[i].data);
         }
 
-        if(b.Count >= 25000)
-        { MessageBox.Show("The level data is too big (>25kb)", "Failed to save level data"); return; }
+        if(b.Count > 12288)
+        { MessageBox.Show("The level data is too big (>12KiB)", "Failed to save level data"); return; }
 
         rawData = [.. b];
         FileStream fs = new(filePath, FileMode.Create);
@@ -713,12 +724,15 @@ public partial class Editor : Form
             inc += ", LD+" + offset;
             offset += levelDataList[i].data.Count;
         }
-        fs = new(filePath.Remove(filePath.Length - 3) + "offsets.inc.s", FileMode.Create);
+        inc += "\n.define levelCount " + levelDataList.Count;
+        fs = new(filePath.Remove(filePath.Length - 3) + "offsets.s", FileMode.Create);
         fs.Write(Encoding.UTF8.GetBytes(inc));
         fs.Close();
 
-        if(b.Count >= 12000)
+        if(b.Count >= 10000)
         { MessageBox.Show("Friendly reminder that the level data is beginning to grow large.\n(Note: The level data has been saved successfully)", "Filesize warning"); }
+
+        //unsavedChanges = false;
     }
 }
 
