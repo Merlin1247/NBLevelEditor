@@ -168,7 +168,17 @@ public partial class Editor : Form
                 }
                 break;
             case 2:
-                //break;
+                if(currentLevel.blocks != null)
+                {
+                    currentLevel.blocks.Add(
+                        new Block{
+                            yPos = 2,
+                            type = 2,
+                            health = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+                        }
+                    );
+                }
+                break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
@@ -217,6 +227,14 @@ public partial class Editor : Form
                         { l.SubItems[3].Text += "," + s.health[i]; 
                         CreateBlock((byte)(i + 1), s.yPos, s.health[i]); }
                         break;
+                    case 2:
+                        l.Text = "Bool Line";
+                        CreateBlock(1, s.yPos, s.health[0]);
+                        l.SubItems[1].Text = "-";
+                        for(int i = 1; i < 14; i++)
+                        { l.SubItems[3].Text += "," + s.health[i]; 
+                        CreateBlock((byte)(i + 1), s.yPos, s.health[i]); }
+                        break;
                     default:
                         throw new FormatException();
                 }
@@ -252,6 +270,31 @@ public partial class Editor : Form
                     (byte)((byte)((b.yPos & 0b00000011) << 5 | (b.yPos & 0b00001100) >> 2 | ((b.type - 1) & 0b00000111) << 2) | 0b10000000));
                     for(int i = 0; i < 14; i++)
                     { currentLevel.data.Add(b.health[i]); }
+                    break;
+                case 2:
+                    currentLevel.data.Add(
+                    (byte)((byte)((b.yPos & 0b00000011) << 5 | (b.yPos & 0b00001100) >> 2 | ((b.type - 1) & 0b00000111) << 2) | 0b10000000));
+                    byte[] baseVal = b.health.Distinct().ToArray();
+                    Array.Sort(baseVal); //sorts in ascending order
+                    if (baseVal.Length == 1) { baseVal = baseVal.Append(baseVal[0]).ToArray(); baseVal[0] = 0; }
+                    //TODO: Mirror detection
+                    byte bit = 0;
+                    for(int i = 0; i < 7; i++)
+                    { 
+                        if (b.health[i] != baseVal[0]) { bit |= 0b10000000; }
+                        bit >>>= 1;
+                    }
+                    currentLevel.data.Add(bit);
+                    bit = 0;
+                    for(int i = 7; i < 14; i++)
+                    {
+                        if (b.health[i] != baseVal[0]) { bit |= 0b00000001; }
+                        bit <<= 1;
+                    }
+                    bit >>>= 1;
+                    currentLevel.data.Add(bit);
+                    if(baseVal[0] != 0) { currentLevel.data.Add((byte)(baseVal[0] | 0b10000000)); }
+                    currentLevel.data.Add(baseVal[1]);
                     break;
                 default:
                     throw new FormatException();
@@ -475,8 +518,20 @@ public partial class Editor : Form
                             }
                             break;
                         case 2:
+                            str = hpText.Text.Split(",");
+                            //str = hpText.Text.Split(" ", StringSplitOptions.RemoveEmptyEntries);
+                            if( str.Length != 14) {throw new FormatException(); }
+                            byte[] blocks = str.Select(byte.Parse).ToArray();
+                            byte[] hp = blocks.Distinct().ToArray();
+                            if (hp.Max() > 100) { throw new ArgumentOutOfRangeException(); }
+                            if(hp.Length != 2 && hp.Length != 1) {throw new FormatException(); }
+                            bool[] bit = new bool[14];
+                            for(int j = 0; j < 14; j++){
+                                currentLevel.blocks[blocksView.SelectedItems[i].Index].health[j] = blocks[j];
+                            }
+                            break;
                         default:
-                            throw new FormatException();
+                            throw new NotImplementedException();
                     }
                     
                 }
@@ -522,8 +577,6 @@ public partial class Editor : Form
         currentLevel.data[5] = currentLevel.ballData.yPos;
         UpdateDisplayedLevel(true);
     }
-
-    
 
     private void ChangeBallXSpd(object? sender, EventArgs e)
     {
@@ -649,7 +702,7 @@ public partial class Editor : Form
                 {
                     Block currentLine = new Block();
                     currentLine.yPos = (byte)(((blockHeader & 0b01100000) >> 5) | ((blockHeader & 0b00000011) << 2));
-                    currentLine.type = (byte)(((blockHeader & 0b00011100) >> 2) + 1);
+                    currentLine.type = (byte)(((blockHeader & 0b00001100) >> 2) + 1);
                     switch(currentLine.type)
                     {
                         case 1:
@@ -662,6 +715,30 @@ public partial class Editor : Form
                             levelOffset += 15;
                             break;
                         case 2:
+                            currentData = new byte[14];
+                            currentLine.mirrored = (rawData[globalOffset+levelOffset+1] & 0b10000000) != 0;
+                            byte t1 = (byte)(rawData[globalOffset+levelOffset+1] & 0b01111111);
+                            byte t2;
+                            if(currentLine.mirrored == false) { levelOffset++; t2 = (byte)(rawData[globalOffset+levelOffset+1] << 1); }
+                            else t2 = (byte)(t1 << 1);
+                            byte hp1;
+                            byte hp2;
+                            if((byte)(rawData[globalOffset+levelOffset+2] & 0b10000000) == 0) { hp1 = 0; hp2 = rawData[globalOffset+levelOffset+2]; } //single
+                            else { hp1 = (byte)(rawData[globalOffset+levelOffset+2] & 0b01111111); levelOffset++; hp2 = rawData[globalOffset+levelOffset+2]; } //double
+                            byte mask = 0b00000001;
+                            for (int i = 0; i < 7; i++)
+                            {
+                                currentData[i] = (t1 & mask) == 0 ? hp1 : hp2;
+                                mask <<= 1;
+                            }
+                            mask = 0b10000000;
+                            for (int i = 7; i < 14; i++)
+                            {
+                                currentData[i] = (t2 & mask) == 0 ? hp1 : hp2;
+                                mask >>>= 1;
+                            }
+                            currentLine.health = currentData;
+                            levelOffset += 3;
                             break;
                         case 3:
                             break;
@@ -709,8 +786,8 @@ public partial class Editor : Form
             b.AddRange(levelDataList[i].data);
         }
 
-        if(b.Count > 12288)
-        { MessageBox.Show("The level data is too big (>12KiB)", "Failed to save level data"); return; }
+        if(b.Count > 20480)
+        { MessageBox.Show("The level data is too big (>20KiB)", "Failed to save level data"); return; }
 
         rawData = [.. b];
         FileStream fs = new(filePath, FileMode.Create);
@@ -729,7 +806,7 @@ public partial class Editor : Form
         fs.Write(Encoding.UTF8.GetBytes(inc));
         fs.Close();
 
-        if(b.Count >= 10000)
+        if(b.Count >= 16000)
         { MessageBox.Show("Friendly reminder that the level data is beginning to grow large.\n(Note: The level data has been saved successfully)", "Filesize warning"); }
 
         //unsavedChanges = false;
@@ -759,6 +836,7 @@ public class Block
     public byte[] health = [];
     public byte xPos;
     public byte yPos;
+    public bool mirrored;
     public byte type;
 }
 

@@ -42,8 +42,7 @@ public class SelectBlockType : Form
             Size = new Size(150, 25),
             Location = new Point(5, 65),
             Text = "Line of blocks(boolean)",
-            BackColor = Color.White,
-            Enabled = false
+            BackColor = Color.White
         };
         this.Controls.Add(boolLineBtn);
         boolLineBtn.Click += DuetLine;
@@ -51,7 +50,7 @@ public class SelectBlockType : Form
         description = new Label(){
             Size = new Size(150, 150),
             Location = new Point(160, 10),
-            Text = "One lonely block...\n\nA whole row of blocks!\n\nUnimplemented",
+            Text = "One lonely block...\n\nA whole row of blocks!\n\nA row of blocks that only allows 2 health values",
             ForeColor = Color.White
         };
         this.Controls.Add(description);
